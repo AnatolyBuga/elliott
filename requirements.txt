@@ -1,2 +1,5 @@
 jupyterlab
+
+# Dataframes
 polars
+pandas
