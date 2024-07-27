@@ -1,9 +1,9 @@
 import datetime
 from abc import ABC
 
+import numpy as np
 import pandas as pd
 import polars as pl
-import numpy as np
 
 
 # Extendable!
@@ -43,97 +43,123 @@ class PortfolioOfOutstandingLoans:
         self.key = key
 
         # Other useful info, aka cache
-        self.other = pd.DataFrame(static_df[key]) 
+        self.other = pd.DataFrame(static_df[key])
+
+    def add_recovery_percent(self):
+        self.other['RecoveryPercent'] = self.other['RecoveredAmmount'] / self.other['BalanceAtDefault']
+        return self.other
     
-    def add_time_to_revision(self):
-        n = len(self.static_df)
-        row = [ 1 if col>=dt else 0 for col in self.get_date_cols() ]
-        res =  pd.DataFrame([row]*n, columns = self.get_date_cols() )
-        res[self.key] = self.static_df[self.key]
-        res['Data'] = "Is Post Seller Purchase"
-        return self.add_data(res)
+    def add_exposure_at_default(self):
+        balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(
+            ["Data", "loan_id"], axis=1
+        )
+        for i, row in self.other.iterrows():
+            default_month = row['DefaultMonth']
+
+            loan_id = i + 1
+            if default_month is not None:
+                balance_at_default = balance.iloc[loan_id - 1][default_month]
+                self.other.loc[i, 'BalanceAtDefault'] = balance_at_default
+            else:
+                self.other.loc[i, 'BalanceAtDefault'] = None
+            
+        return self.other
     
-    def add_is_post_seller_purchase_date(self, dt = datetime.date(2020, 12, 31)):
+    def add_is_post_seller_purchase_date(self, dt=datetime.date(2020, 12, 31)):
         n = len(self.static_df)
-        row = [ 1 if col>=dt else 0 for col in self.get_date_cols() ]
-        res =  pd.DataFrame([row]*n, columns = self.get_date_cols() )
+        row = [1 if col >= dt else 0 for col in self.get_date_cols()]
+        res = pd.DataFrame([row] * n, columns=self.get_date_cols())
         res[self.key] = self.static_df[self.key]
-        res['Data'] = "Is Post Seller Purchase"
+        res["Data"] = "Is Post Seller Purchase"
         return self.add_data(res)
 
     def add_is_recovery_payment(self):
-        ir, rec_months = self.is_recovery_payment()
-        self.other['RecoveryMonth'] = rec_months
+        ir, rec_months, recovery_ammount = self.is_recovery_payment()
+        self.other["LastRecoveryMonth"] = rec_months
+        self.other["RecoveredAmmount"] = recovery_ammount
         return self.add_data(ir)
-    
+
     def is_recovery_payment(self):
         """For each loan, mark if the payment occurs after default"""
-        
-        res = []
-        payments = self.data_df[self.data_df['Data'] == 'Payment Made'].drop(['Data', 'loan_id'], axis=1)
-        n_cols = len(payments.columns)
-        recovery_months = []
 
-        if 'DefaultMonth' not in self.other.columns:
+        res = []
+        payments = self.data_df[self.data_df["Data"] == "Payment Made"].drop(
+            ["Data", "loan_id"], axis=1
+        )
+        n_cols = len(payments.columns)
+        # save this usefult metrics for further use
+        recovery_months = []
+        recovery_ammounts = []
+
+        if "DefaultMonth" not in self.other.columns:
             self.add_default_month()
 
         # iterate ove loan_id-DefaultMonth pairs
-        for i, default_month in enumerate(self.other['DefaultMonth']): # recall self.other contains DefaultMonth per loan
+        for i, default_month in enumerate(
+            self.other["DefaultMonth"]
+        ):  # recall self.other contains DefaultMonth per loan
             loan_id = i + 1
             zeros = np.zeros(n_cols)
-            recovery_month = None
+            recovery_month = None # not this is actually the last payment of recovery
+            recovered = None
             if default_month is not None:
-
-                cols_post_default = [col for col in payments.columns if col>=default_month]
+                cols_post_default = [
+                    col for col in payments.columns if col >= default_month
+                ]
                 def_ix = payments.columns.to_list().index(default_month)
 
                 # we are only interestd in cashflows beyond default date
                 # TODO Again assuming ordered and consecutive loan_ids
-                relevant_cashflows = payments.iloc[loan_id-1][cols_post_default]
-                for cf_i, cf in enumerate(relevant_cashflows): # we know this frame has only one row
+                relevant_cashflows = payments.iloc[loan_id - 1][cols_post_default]
+                for cf_i, cf in enumerate(
+                    relevant_cashflows
+                ):  # we know this frame has only one row
                     if cf > 0.001:
-                        # sum indexes , because we filtered out not interesting payments. so relevant_cashflows indexes are missing 
+                        # sum indexes , because we filtered out not interesting payments. so relevant_cashflows indexes are missing
                         # those where  col>=default_month
-                        zeros[def_ix+cf_i] = 1
-                        recovery_month = payments.columns[def_ix+cf_i]
+                        zeros[def_ix + cf_i] = 1
+                        recovery_month = payments.columns[def_ix + cf_i]
+                        if recovered is None:
+                            recovered = cf
+                        else:
+                            recovered += cf
 
             recovery_months.append(recovery_month)
-            payment_after_default = pd.Series(zeros, index = payments.columns)
+            recovery_ammounts.append(recovered)
+            payment_after_default = pd.Series(zeros, index=payments.columns)
             res.append(payment_after_default)
 
         df = pd.DataFrame(res)
         df["Data"] = "Is Recovery Payment"
-        df["loan_id"] = self.static_df[
-            "loan_id"
-        ]
-        return df, recovery_months
+        df["loan_id"] = self.static_df["loan_id"]
+        return df, recovery_months, recovery_ammounts
 
-    
     def add_default_month(self):
         dm, default_months_per_loan = self.default_month()
-        self.other['DefaultMonth'] = default_months_per_loan
+        self.other["DefaultMonth"] = default_months_per_loan
         return self.add_data(dm)
-    
+
     def default_month(self):
         """Finds the month of default"""
-        # TODO this function definitely can be vectorized 
-        due_vs_made = self.get_or_compute("Payment Made vs Due", self.payment_due_vs_made)
+        # TODO this function definitely can be vectorized
+        due_vs_made = self.get_or_compute(
+            "Payment Made vs Due", self.payment_due_vs_made
+        )
 
         _result2 = []
-        results = [] # this is for df assignment
+        results = []  # this is for df assignment
         for _, row in due_vs_made.iterrows():
             default_payment_idx = None
             count_missed = 0
             for i, payment_due_vs_made in enumerate(row):
-                
-                if payment_due_vs_made < -0.0001: # to avoid edge cases
+                if payment_due_vs_made < -0.0001:  # to avoid edge cases
                     count_missed += 1
                     if count_missed == 3:
                         default_payment_idx = i
                         break
 
                 else:
-                    #reset
+                    # reset
                     count_missed = 0
             n_cols = len(due_vs_made.columns)
             zeros = np.zeros(n_cols)
@@ -142,16 +168,12 @@ class PortfolioOfOutstandingLoans:
                 _result2.append(due_vs_made.columns[default_payment_idx])
             else:
                 _result2.append(None)
-            default_month = pd.Series(zeros, index = due_vs_made.columns)
+            default_month = pd.Series(zeros, index=due_vs_made.columns)
             results.append(default_month)
-
-            
 
         df = pd.DataFrame(results)
         df["Data"] = "Is Default Month"
-        df["loan_id"] = self.static_df[
-            "loan_id"
-        ]
+        df["loan_id"] = self.static_df["loan_id"]
         return df, _result2
 
     def add_payment_made_vs_due(self):
@@ -176,7 +198,7 @@ class PortfolioOfOutstandingLoans:
     def n_missing_payments(self):
         """Computes total number of missed payments"""
         # check if has already been calculated
-        res =  self.get_or_compute("Payment Made vs Due", self.payment_due_vs_made)
+        res = self.get_or_compute("Payment Made vs Due", self.payment_due_vs_made)
 
         # if positive => Payment Made > Payment Due , which is ok, as it is an overpayment
         res[res >= 0] = 0
@@ -191,9 +213,9 @@ class PortfolioOfOutstandingLoans:
         return n_missing_payments
 
     def payment_due_vs_made(self):
-        """ Find diff between Payment Made and Payment Due.
-            Helps accessing missed payment or default
-           """
+        """Find diff between Payment Made and Payment Due.
+        Helps accessing missed payment or default
+        """
         df_filtered = self.data_df[
             self.data_df["Data"].isin(["Payment Made", "Payment Due"])
         ]
@@ -211,29 +233,43 @@ class PortfolioOfOutstandingLoans:
 
         return res
 
+    def add_seasoning(self):
+        """Adds seasoning"""
+        s = self.seasoning()
+        return self.add_data(s)
+
     def seasoning(self):
         """Computes Seasoning"""
+        res = self.months_to("origination_date")
+        res["Data"] = "Seasoning"
+        return res
+
+    def add_time_to_reversion(self):
+        """Adds seasoning"""
+        s = self.reversion()
+        return self.add_data(s)
+
+    def reversion(self):
+        """Computes Seasoning"""
+        res = self.months_to("reversion_date")
+        res["Data"] = "Time To Reversion"
+        return res
+
+    ### ####  ###
+    ### UTILS ###
+    ### ####  ###
+
+    def months_to(self, date_col_name: str):
         # We want to vectorise the computation, so use polars
         pl_stat = pl.from_pandas(self.static_df)
         res = pd.DataFrame(self.static_df[self.key])
         for d in self.get_date_cols():
             # For simplicity assuming 30 days per month
-            sasoning_per_month = (d - pl_stat["origination_date"]).dt.total_days() / 30
+            sasoning_per_month = (d - pl_stat[date_col_name]).dt.total_days() / 30
             sasoning_per_month_rounded = sasoning_per_month.round()
             res[d] = sasoning_per_month_rounded.to_pandas()
-        res["Data"] = "Seasoning"
         return res
 
-    def add_seasoning(self):
-        """Adds seasoning"""
-        s = self.seasoning()
-        return self.add_data(s)
-    
-
-    ### ####  ###
-    ### UTILS ###
-    ### ####  ###
-    
     def get_or_compute(self, data_name: str, method):
         if data_name not in self.data_df["Data"]:
             res = method()

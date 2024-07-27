@@ -31,11 +31,23 @@ loans_data = PortfolioOfOutstandingLoans.from_excel(
 
 # Note Recovery is defined as any payments, even £1
 # Default Month
-# print(loans_data.add_default_month().head(10))
-# Use it to calc 
-# print(loans_data.add_is_recovery_payment().head(15))
+print(loans_data.add_default_month().head(10))
+# Use it to calc
+print(loans_data.add_is_recovery_payment().head(15))
 
-print(loans_data.add_is_post_seller_purchase_date().head(15))
+# Post Seller Purchase Date
+# print(loans_data.add_is_post_seller_purchase_date().head(15))
 
+# Reversion - very similar to seasoning
+# print(loans_data.add_time_to_reversion().head(15))
+
+# Post Default Recoveries, Date of Default and Date of last Recovery Payment
+print(loans_data.other.head(15))
+
+# And BalanceAtDefault
+print(loans_data.add_exposure_at_default().head(15))
+
+# And Recovery Percent
+print(loans_data.add_recovery_percent().head(15))
 
 k = 5
