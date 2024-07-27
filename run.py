@@ -29,6 +29,13 @@ loans_data = PortfolioOfOutstandingLoans.from_excel(
 # note we a reusing Payment Due vs Made
 # print(loans_data.add_n_missing_payments().head(10))
 
+# Note Recovery is defined as any payments, even £1
 # Default Month
-print(loans_data.add_default_month().head(10))
+# print(loans_data.add_default_month().head(10))
+# Use it to calc 
+# print(loans_data.add_is_recovery_payment().head(15))
+
+print(loans_data.add_is_post_seller_purchase_date().head(15))
+
+
 k = 5
