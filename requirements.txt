@@ -3,6 +3,7 @@ jupyterlab
 # Dataframes
 polars
 pandas
+pyarrow
 
 #excel
 openpyxl
