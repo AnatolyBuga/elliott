@@ -3,6 +3,7 @@ from abc import ABC
 
 import pandas as pd
 import polars as pl
+import numpy as np
 
 
 # Extendable!
@@ -41,64 +42,145 @@ class PortfolioOfOutstandingLoans:
         self.static_df = static_df
         self.key = key
 
+    def get_or_compute(self, data_name: str, method):
+        if "Payment Made vs Due" not in self.data_df["Data"]:
+            res = method()
+        else:
+            res = self.data_df[self.data_df["Data"] == "Payment Made vs Due"].drop(
+                ["loan_id", "Data"]
+            )
+        return res
+    
+    def add_default_month(self):
+        dm = self.default_month()
+        return self.add_data(dm)
+    
+    def default_month(self):
+
+        # TODO this function definitely can be vectorized 
+        due_vs_made = self.get_or_compute("Payment Made vs Due", self.payment_due_vs_made)
+        results = []
+        for index, row in due_vs_made.iterrows():
+            default_payment_idx = None
+            count_missed = 0
+            for i, payment_due_vs_made in enumerate(row):
+                
+                if payment_due_vs_made < -0.0001: # to avoid edge cases
+                    count_missed += 1
+                    if count_missed == 3:
+                        default_payment_idx = i
+                        break
+
+                else:
+                    #reset
+                    count_missed = 0
+            n_cols = len(due_vs_made.columns)
+            zeros = np.zeros(n_cols)
+            if default_payment_idx is not None:
+                zeros[default_payment_idx] = 1
+            default_month = pd.Series(zeros, index = due_vs_made.columns)
+            results.append(default_month)
+
+        df = pd.DataFrame(results)
+        df["Data"] = "Is Default Month"
+        df["loan_id"] = self.static_df[
+            "loan_id"
+        ]
+        return df
+
+    def add_payment_made_vs_due(self):
+        pvd = self.payment_made_vs_due()
+        return self.add_data(pvd)
+
+    def payment_made_vs_due(self):
+        # Payment Due vs Payment Actually Made each month
+        res = self.payment_due_vs_made()
+
+        # if positive => Payment Made > Payment Due => Overpayment
+        res["Data"] = "Payment Made vs Due"
+        res["loan_id"] = self.static_df[
+            "loan_id"
+        ]  # TODO assuming static data is complete and sorted
+        return res
+
     def add_n_missing_payments(self):
         nm = self.n_missing_payments()
         return self.add_data(nm)
-    
-    def n_missing_payments(self):
-        # Find diff between Payment Made and Payment Due
-        df_filtered = self.data_df[self.data_df['Data'].isin(['Payment Made', 'Payment Due'])]
-        df_filtered.loc[df_filtered['Data'] == 'Payment Due'] *= -1
-        # no need for this column any longer
-        df_filtered.drop('Data', axis=1, inplace=True)
 
-        df_filtered[self.key] = df_filtered[self.key].abs() # line above converts loan id too, so undo it
-        res = df_filtered.groupby(self.key).agg('sum')
-        # We need to drop str cols here, before comparisons and Before cumsum have to drop str cols
-        
-        res.drop('loan_id', axis=1, inplace=True)
+    def n_missing_payments(self):
+        """Computes total number of missed payments"""
+        # check if has already been calculated
+        if "Payment Made vs Due" not in self.data_df["Data"]:
+            res = self.payment_due_vs_made()
+        else:
+            res = self.data_df[self.data_df["Data"] == "Payment Made vs Due"].drop(
+                ["loan_id", "Data"]
+            )
 
         # if positive => Payment Made > Payment Due , which is ok, as it is an overpayment
-        res[res>=0] = 0
-        res[res<0] = 1 # Due > Made => missed payment
+        res[res >= 0] = 0
+        res[res < 0] = 1  # Due > Made => missed payment
 
         n_missing_payments = res.cumsum(axis=1)
 
-        n_missing_payments['Data'] = 'N missing payments'
-        n_missing_payments['loan_id'] = self.static_df['loan_id'] #TODO assuming static data is complete and sorted
+        n_missing_payments["Data"] = "N missing payments"
+        n_missing_payments["loan_id"] = self.static_df[
+            "loan_id"
+        ]  # TODO assuming static data is complete and sorted
         return n_missing_payments
 
-    def add_current_balance(self):
-        cb = self.current_balance()
-        cb.drop("original_balance", axis=1)
-        return self.add_data(cb)
+    def payment_due_vs_made(self):
+        """ Find diff between Payment Made and Payment Due.
+            Helps accessing missed payment or default
+           """
+        df_filtered = self.data_df[
+            self.data_df["Data"].isin(["Payment Made", "Payment Due"])
+        ]
+        df_filtered.loc[df_filtered["Data"] == "Payment Due"] *= -1
+        # no need for this column any longer
+        df_filtered.drop("Data", axis=1, inplace=True)
 
-    def current_balance(self, floor_0 = True):
-        """Original Balance minus sum of Payments Made(including current month)"""
-        payment_cumsum = self.payment_made_cumsum()
-        original_balance = self.static_df[[self.key, "original_balance"]]
-        payment_cumsum_with_balance = pd.merge(
-            payment_cumsum, original_balance, on=self.key, how="left"
-        )
-        for d in self.get_date_cols():
-            payment_cumsum_with_balance[d] = (
-                payment_cumsum_with_balance["original_balance"]
-                - payment_cumsum_with_balance[d]
-            )
-        # Set to 0 if Sum of Payments Made is greater than outstanding ammount
-        if floor_0:
-            payment_cumsum_with_balance[payment_cumsum_with_balance<0] = 0
-        payment_cumsum_with_balance["Data"] = "Current Balance"
-        return payment_cumsum_with_balance
+        df_filtered[self.key] = df_filtered[
+            self.key
+        ].abs()  # line above converts loan id too, so undo it
+        res = df_filtered.groupby(self.key, as_index=False).agg("sum")
 
-    def payment_made_cumsum(self):
-        """`Sum Payment Made across rows"""
-        payments = self.data_df[self.data_df["Data"] == "Payment Made"]
-        numerics_only = payments[self.get_date_cols()].fillna(0)
-        payment_cumsum = numerics_only.cumsum(axis=1)
-        payment_cumsum.insert(0, self.key, self.static_df[self.key])
+        # We need to drop str cols here, before comparisons and Before cumsum have to drop str cols
+        res.drop("loan_id", axis=1, inplace=True)
 
-        return payment_cumsum
+        return res
+
+    # def add_current_balance(self):
+    #     cb = self.current_balance()
+    #     cb.drop("original_balance", axis=1)
+    #     return self.add_data(cb)
+
+    # def current_balance(self, floor_0=True):
+    #     """Original Balance minus sum of Payments Made(including current month)"""
+    #     payment_cumsum = self.payment_made_cumsum()
+    #     original_balance = self.static_df[[self.key, "original_balance"]]
+    #     payment_cumsum_with_balance = pd.merge(
+    #         payment_cumsum, original_balance, on=self.key, how="left"
+    #     )
+    #     for d in self.get_date_cols():
+    #         payment_cumsum_with_balance[d] = (
+    #             payment_cumsum_with_balance["original_balance"]
+    #             - payment_cumsum_with_balance[d]
+    #         )
+    #     # Set to 0 if Sum of Payments Made is greater than outstanding ammount
+    #     if floor_0:
+    #         payment_cumsum_with_balance[payment_cumsum_with_balance < 0] = 0
+    #     payment_cumsum_with_balance["Data"] = "Current Balance"
+    #     return payment_cumsum_with_balance
+
+    # def payment_made_cumsum(self):
+    #     """`Sum Payment Made across rows"""
+    #     payments = self.data_df[self.data_df["Data"] == "Payment Made"]
+    #     numerics_only = payments[self.get_date_cols()].fillna(0)
+    #     payment_cumsum = numerics_only.cumsum(axis=1)
+    #     payment_cumsum.insert(0, self.key, self.static_df[self.key])
+
+    #     return payment_cumsum
 
     def seasoning(self):
         """Computes Seasoning"""

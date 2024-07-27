@@ -23,5 +23,12 @@ loans_data = PortfolioOfOutstandingLoans.from_excel(
 
 # print(loans_data.add_seasoning().head(10))
 
-print(loans_data.add_n_missing_payments().head(6))
+# Note, first we do paid vs due. It's a fairly expensive calculation
+# so best doing it once and then reusing the value
+# print(loans_data.add_payment_made_vs_due().head(10))
+# note we a reusing Payment Due vs Made
+# print(loans_data.add_n_missing_payments().head(10))
+
+# Default Month
+print(loans_data.add_default_month().head(10))
 k = 5
