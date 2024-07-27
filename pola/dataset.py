@@ -42,29 +42,45 @@ class PortfolioOfOutstandingLoans:
         self.static_df = static_df
         self.key = key
 
-        # Other useful info, aka cache
-        self.other = pd.DataFrame(static_df[key])
 
-    def add_recovery_percent(self):
-        self.other['RecoveryPercent'] = self.other['RecoveredAmmount'] / self.other['BalanceAtDefault']
-        return self.other
+    def add_prepayment_date(self):
+        """Assuming Loan repays when we first hit Month End Balance == 0"""
+        balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(
+            ["Data", "loan_id"], axis=1
+        )
+        tenors = self.get_date_cols()
+        for i, row in balance.iterrows():
+
+            for ix, cf in enumerate(row):
+                # note: for each row Balances are NaN, then positive, then 0 if repaid
+                if cf < 0.00001:
+                    self.static_df.loc[i, "PrepaymentDate"] = tenors[ix]
+                    break
+
+        return self.static_df
     
+    def add_recovery_percent(self):
+        self.static_df["RecoveryPercent"] = (
+            self.static_df["RecoveredAmmount"] / self.static_df["BalanceAtDefault"]
+        )
+        return self.static_df
+
     def add_exposure_at_default(self):
         balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(
             ["Data", "loan_id"], axis=1
         )
-        for i, row in self.other.iterrows():
-            default_month = row['DefaultMonth']
+        for i, row in self.static_df.iterrows():
+            default_month = row["DefaultMonth"]
 
             loan_id = i + 1
             if default_month is not None:
                 balance_at_default = balance.iloc[loan_id - 1][default_month]
-                self.other.loc[i, 'BalanceAtDefault'] = balance_at_default
+                self.static_df.loc[i, "BalanceAtDefault"] = balance_at_default
             else:
-                self.other.loc[i, 'BalanceAtDefault'] = None
-            
-        return self.other
-    
+                self.static_df.loc[i, "BalanceAtDefault"] = None
+
+        return self.static_df
+
     def add_is_post_seller_purchase_date(self, dt=datetime.date(2020, 12, 31)):
         n = len(self.static_df)
         row = [1 if col >= dt else 0 for col in self.get_date_cols()]
@@ -75,8 +91,8 @@ class PortfolioOfOutstandingLoans:
 
     def add_is_recovery_payment(self):
         ir, rec_months, recovery_ammount = self.is_recovery_payment()
-        self.other["LastRecoveryMonth"] = rec_months
-        self.other["RecoveredAmmount"] = recovery_ammount
+        self.static_df["LastRecoveryMonth"] = rec_months
+        self.static_df["RecoveredAmmount"] = recovery_ammount
         return self.add_data(ir)
 
     def is_recovery_payment(self):
@@ -91,16 +107,16 @@ class PortfolioOfOutstandingLoans:
         recovery_months = []
         recovery_ammounts = []
 
-        if "DefaultMonth" not in self.other.columns:
+        if "DefaultMonth" not in self.static_df.columns:
             self.add_default_month()
 
         # iterate ove loan_id-DefaultMonth pairs
         for i, default_month in enumerate(
-            self.other["DefaultMonth"]
+            self.static_df["DefaultMonth"]
         ):  # recall self.other contains DefaultMonth per loan
             loan_id = i + 1
             zeros = np.zeros(n_cols)
-            recovery_month = None # not this is actually the last payment of recovery
+            recovery_month = None  # not this is actually the last payment of recovery
             recovered = None
             if default_month is not None:
                 cols_post_default = [
@@ -136,7 +152,7 @@ class PortfolioOfOutstandingLoans:
 
     def add_default_month(self):
         dm, default_months_per_loan = self.default_month()
-        self.other["DefaultMonth"] = default_months_per_loan
+        self.static_df["DefaultMonth"] = default_months_per_loan
         return self.add_data(dm)
 
     def default_month(self):
