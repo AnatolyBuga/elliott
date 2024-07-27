@@ -1,13 +1,13 @@
 from .dataset import (
-    DataSet,
     LoanDataTabInfo,
     MonthEndBalanceTabInfo,
     PaymentDueTabInfo,
     PaymentMadeTabInfo,
+    PortfolioOfOutstandingLoans,
 )
 
 __all__ = [
-    "DataSet",
+    "PortfolioOfOutstandingLoans",
     "MonthEndBalanceTabInfo",
     "PaymentMadeTabInfo",
     "PaymentDueTabInfo",

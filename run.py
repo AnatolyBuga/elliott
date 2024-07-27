@@ -1,7 +1,12 @@
-from pola import DataSet, MonthEndBalanceTabInfo, PaymentDueTabInfo, PaymentMadeTabInfo
+from pola import (
+    MonthEndBalanceTabInfo,
+    PaymentDueTabInfo,
+    PaymentMadeTabInfo,
+    PortfolioOfOutstandingLoans,
+)
 
-loans_data = DataSet.from_excel(
-    path = "2024 - Strat Casestudy.xlsx",
+loans_data = PortfolioOfOutstandingLoans.from_excel(
+    path="2024 - Strat Casestudy.xlsx",
     static_tab="DATA-Static",
     data_tabs=[
         MonthEndBalanceTabInfo("DATA-Month End Balances"),
@@ -9,6 +14,14 @@ loans_data = DataSet.from_excel(
         PaymentMadeTabInfo("DATA-Payment Made"),
     ],
 )
-print(loans_data.all_data().head(10))
-print(loans_data.add_seasoning().head(10))
+
+# print(loans_data.all_data().head(10))
+
+# Month End balance is Current Balance
+# it takes into account interest and outstanding ammount
+# print(loans_data.current_balance().head(6))
+
+# print(loans_data.add_seasoning().head(10))
+
+print(loans_data.add_n_missing_payments().head(6))
 k = 5
