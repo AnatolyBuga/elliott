@@ -14,6 +14,40 @@ class PortfolioOfOutstandingLoans:
         self.static_df = static_df
         self.key = key
 
+    def add_is_active(self):
+        months = self.get_date_cols()
+
+        res = []
+        
+        for i, row in self.static_df.iterrows():
+            loan_id = i + 1
+            loan_is_active = []
+            loan_is_active.append(loan_id)
+            loan_is_active.append('Is Active')
+            defaultM = row['DefaultMonth']
+            
+            for month in months:
+                is_active = 0
+                originated = month >= row['origination_date'].date()
+                in_def = False
+                if defaultM:
+                    in_def = month <= defaultM
+                if originated and not in_def:
+                    is_active = 1
+                loan_is_active.append(is_active)
+
+            # self.data_df.loc[len(self.data_df)] = loan_is_active
+            res.append(loan_is_active)
+
+        df = pd.DataFrame(res, columns=[self.key, 'Data'] + months)
+
+        self.data_df = pd.concat([self.data_df, df], ignore_index=True)
+
+        self.data_df.sort_values(by=self.key, inplace=True)
+
+        return self.data_df
+        
+
     def add_prepayment_date(self):
         """Assuming Loan repays when we first hit Month End Balance == 0"""
         balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(

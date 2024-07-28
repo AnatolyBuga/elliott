@@ -11,7 +11,8 @@ from .tabs import (
 )
 
 from .curves import (
-    cpr
+    cpr,
+    cdr
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "PaymentDueTabInfo",
     "LoanDataTabInfo",
     "StaticTabInfo",
-    "cpr"
+    "cpr",
+    "cdr"
 ]
