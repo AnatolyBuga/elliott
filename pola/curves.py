@@ -7,6 +7,9 @@ from .dataset import PortfolioOfOutstandingLoans
 
 
 class Curve(ABC):
+    """This curve originates from PortfolioOfOutstandingLoans
+        In the future we might want to abstract away from that and have more generic curve
+    """
     def __init__(
         self,
         portfolio: PortfolioOfOutstandingLoans,
@@ -29,6 +32,17 @@ class Curve(ABC):
         pivots=[],
         filter_gt_0: bool = True,
     ) -> pd.DataFrame:
+        """Distributes pivots into single calculations
+
+        Args:
+            portfolio (PortfolioOfOutstandingLoans): 
+            index (str, optional):. Defaults to "Seasoning".
+            pivots (list, optional): . Defaults to [].
+            filter_gt_0 (bool, optional): . Defaults to True.
+
+        Returns:
+            pd.DataFrame: _description_
+        """
         cashflow_columns = portfolio.get_date_cols()
 
         curves = []
@@ -61,6 +75,8 @@ class Curve(ABC):
         return pd.concat(curves, axis=1)
 
     def print_curve(self):
+        """Pretty prints curve
+        """
         for idx, curve in self.curves.items():
             print(idx, "\n")
 
