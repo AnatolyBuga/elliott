@@ -1,19 +1,6 @@
-from .dataset import (
-    LoanDataTabInfo,
-    PortfolioOfOutstandingLoans,
-    StaticTabInfo,
-)
-
-from .tabs import (
-    MonthEndBalanceTabInfo,
-    PaymentDueTabInfo,
-    PaymentMadeTabInfo,
-)
-
-from .curves import (
-    cpr,
-    cdr
-)
+from .curves import cpr, print_curve, cdr
+from .dataset import LoanDataTabInfo, PortfolioOfOutstandingLoans, StaticTabInfo
+from .tabs import MonthEndBalanceTabInfo, PaymentDueTabInfo, PaymentMadeTabInfo
 
 __all__ = [
     "PortfolioOfOutstandingLoans",
@@ -23,5 +10,6 @@ __all__ = [
     "LoanDataTabInfo",
     "StaticTabInfo",
     "cpr",
-    "cdr"
+    "cdr",
+    "print_curve",
 ]

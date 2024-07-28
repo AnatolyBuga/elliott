@@ -1,4 +1,4 @@
-import datetime 
+import polars as pl
 
 from pola import (
     MonthEndBalanceTabInfo,
@@ -7,10 +7,11 @@ from pola import (
     PortfolioOfOutstandingLoans,
     StaticTabInfo,
     cpr,
-    cdr
+    cdr,
+    print_curve,
 )
 
-import polars as pl
+import pola.curves
 
 pl.Config.set_tbl_rows(100)
 
@@ -76,13 +77,13 @@ print(loans_data.add_recovery_percent().head(15))
 print(loans_data.add_prepayment_date().head(15))
 
 # Extra
-# For CDR(Default Curve) it's good to know 
+# For CDR(Default Curve) it's good to know
 print(loans_data.add_is_active().head(15))
 
 
 # CPR estimates rate at which borrower prepay their loans
 
-# For a portfolio of loans, the CPR is an annualized percentage rate that indicates the proportion of the 
+# For a portfolio of loans, the CPR is an annualized percentage rate that indicates the proportion of the
 # remaining principal that is expected to be prepaid over a specified period.
 
 # Prepayment Curve
@@ -90,24 +91,21 @@ print(loans_data.add_is_active().head(15))
 
 # Note a single use function should return same datatype with or without pivots
 # So we return DataFrame always
-# cpr_curve = cpr(loans_data)
-# for idx, value in cpr_curve.items():
-#     print(f"Index: {idx}, Value: {value}")
+cpr_curve = cpr(loans_data)
+print_curve(cpr_curve)
 
-# TODO
-cpr_curve = cpr(loans_data, pivots=[
-    "product"])
+# With pivot on Product
+cpr_curve = cpr(loans_data, pivots=["product"])
 
-for idx, value in cpr_curve.items():
-    print(f"Index: {idx}, Value: {value}")
+print_curve(cpr_curve)
 
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning
-# cdr_curve = cdr(loans_data) 
+# cdr_curve = cdr(loans_data)
 # for idx, value in cdr_curve.items():
 #      print(f"Index: {idx}, Value: {value}")
 
 # It is also interesting to look at Recovery Curve per seasoning.
-# 
+#
 end = 0
