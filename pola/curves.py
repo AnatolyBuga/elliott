@@ -16,17 +16,13 @@ def print_curve(curve: pd.DataFrame):
 
         print("\n")
 
-def build_curves_with_pivot(curve: str, portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]):
-    _CURVE_MAP = {
-    'cpr': single_cpr,
-    'cdr': single_cdr,
-    }
-
+def build_curves_with_pivot(curve: str, portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[], filter_gt_0: bool = True) -> pd.DataFrame:
+    
     f = _CURVE_MAP[curve]
 
     cashflow_columns = portfolio.get_date_cols()
 
-    cprs = []
+    curves = []
 
     if pivots:
         # split by pivot
@@ -38,53 +34,17 @@ def build_curves_with_pivot(curve: str, portfolio: PortfolioOfOutstandingLoans, 
             name = "_".join(gr_name_str)
 
             # compute curve for each group
-            cprs.append(
-                f(group, cashflow_columns, index).rename(name + " " + "CPR")
+            curves.append(
+                f(group, cashflow_columns, index, filter_gt_0).rename(name + " " + f"CPR per {index}")
             )
 
     else:
-        cprs.append(f(portfolio.data_df, cashflow_columns, index))
+        curves.append(f(portfolio.data_df, cashflow_columns, index, filter_gt_0))
 
-    return pd.concat(cprs, axis=1)
-
-
-def cpr(
-    portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]
-) -> pd.Series:
-    """Generates Conditional Prepayment Rate Prepayment Curves for the portfolio by
-        dividing Prepayment Amount by Month End Balance for each seasoning.
-        Assumes Prepayment is any payment where actual payment > amount due , which is not necessarily the case
-            eg loan_id 2 30/06/22 is a repayment of a missed payment. However such exceptions are small in value and rare.
-
-        Filters out negative seasonings.
-
-    Args:
-        portfolio (PortfolioOfOutstandingLoans): Portfolio
-        index (str, optional): x axis. Defaults to 'Seasoning'.
-        pivots (list, optional): list of column names(in our MUST be from static data eg product), whereby the function will then return
-            a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
-    """
-
-    return build_curves_with_pivot('cpr', portfolio, index, pivots)
-
-def cdr(
-    portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]
-) -> pd.Series: 
-    """Generates Conditional Default Rate / Default Curves for the portfolio by
-            dividing N of defaults by N of active loans for each seasoning
-        Filters out negative seasonings.
-
-    Args:
-        portfolio (PortfolioOfOutstandingLoans): Portfolio
-        index (str, optional): x axis. Defaults to 'Seasoning'.
-        pivots (list, optional): list of column names(in our case dates eg 31/07/2021), whereby the function will then return
-            a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
-    """
-    
-    return build_curves_with_pivot('cdr', portfolio, index, pivots)
+    return pd.concat(curves, axis=1)
 
 
-def single_cpr(data_df, cashflow_columns, index="Seasoning") -> pd.Series:
+def single_cpr(data_df, cashflow_columns, index="Seasoning", filter_gt_0: bool = True) -> pd.Series:
     loan_data = pl.from_pandas(data_df)
 
     cashflow_columns_polars = [dt.strftime("%Y-%m-%d") for dt in cashflow_columns]
@@ -123,11 +83,11 @@ def single_cpr(data_df, cashflow_columns, index="Seasoning") -> pd.Series:
 
     # For each unique seasoning:
     # sum Recovery Payment Ammounts / sum month end balance
-    return groupby_and_ratio(df, index, "PPA", "MEB", "CPR")
+    return groupby_and_ratio(df, index, "PPA", "MEB", "CPR", filter_gt_0)
 
 
 def single_cdr(
-    portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]
+    data_df, cashflow_columns, index="Seasoning", filter_gt_0: bool = True
 ) -> pd.Series:
     """Generates Conditional Default Rate / Default Curves for the portfolio by
             dividing N of defaults by N of active loans for each seasoning
@@ -140,11 +100,9 @@ def single_cdr(
             a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
     """
 
-    cashflow_columns = portfolio.get_date_cols()
-
     cashflow_columns_polars = [dt.strftime("%Y-%m-%d") for dt in cashflow_columns]
 
-    loan_data = pl.from_pandas(portfolio.data_df)
+    loan_data = pl.from_pandas(data_df)
 
     # Put all Seasonings, Month End Balance, Is Recovery Payment, Payment Made vs Due into one long Series each
     seasonings = loan_data.filter(pl.col("Data").eq(index))  # select Seasoning
@@ -169,19 +127,62 @@ def single_cdr(
 
     df = pl.DataFrame([combined_seasonings, combined_idm, combined_ia])
 
-    return groupby_and_ratio(df, index, "IDM", "IA", "CDR")
+    return groupby_and_ratio(df, index, "IDM", "IA", "CDR", filter_gt_0)
 
 
 def groupby_and_ratio(
-    df: pl.DataFrame, index: str, numertor: str, denominator: str, alias: str
+    df: pl.DataFrame, index: str, numertor: str, denominator: str, alias: str, filter_gt_0: bool = True
 ):
     rpa_div_by_meb = (
         df.group_by(index)
         .agg((pl.col(numertor).sum() / pl.col(denominator).sum()).alias(alias))
         .sort(by=index)
-        .filter(pl.col("Seasoning") >= 0)  # Filter out negative seasonings
+          # Filter out negative seasonings
     )  # Filter out negative seasonings
+
+    if filter_gt_0:
+        rpa_div_by_meb = rpa_div_by_meb.filter(pl.col(index) >= 0)
 
     res = rpa_div_by_meb.to_pandas()
     res.set_index(index, inplace=True)
     return res[alias]
+
+def cpr(
+    portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[], filter_gt_0: bool = True
+) -> pd.Series:
+    """Generates Conditional Prepayment Rate Prepayment Curves for the portfolio by
+        dividing Prepayment Amount by Month End Balance for each seasoning.
+        Assumes Prepayment is any payment where actual payment > amount due , which is not necessarily the case
+            eg loan_id 2 30/06/22 is a repayment of a missed payment. However such exceptions are small in value and rare.
+
+        Filters out negative seasonings.
+
+    Args:
+        portfolio (PortfolioOfOutstandingLoans): Portfolio
+        index (str, optional): x axis. Defaults to 'Seasoning'.
+        pivots (list, optional): list of column names(in our MUST be from static data eg product), whereby the function will then return
+            a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
+    """
+
+    return build_curves_with_pivot('cpr', portfolio, index, pivots, filter_gt_0)
+
+def cdr(
+    portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[], filter_gt_0: bool = True
+) -> pd.Series: 
+    """Generates Conditional Default Rate / Default Curves for the portfolio by
+            dividing N of defaults by N of active loans for each seasoning
+        Filters out negative seasonings.
+
+    Args:
+        portfolio (PortfolioOfOutstandingLoans): Portfolio
+        index (str, optional): x axis. Defaults to 'Seasoning'.
+        pivots (list, optional): list of column names(in our case dates eg 31/07/2021), whereby the function will then return
+            a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
+    """
+
+    return build_curves_with_pivot('cdr', portfolio, index, pivots, filter_gt_0)
+
+_CURVE_MAP = {
+    'cpr': single_cpr,
+    'cdr': single_cdr,
+    }

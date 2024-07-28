@@ -88,25 +88,32 @@ print(loans_data.add_is_active().head(15))
 
 # Note a single use function should return same datatype with or without pivots
 # So we return DataFrame always
-cpr_curve = curves.cpr(loans_data)
-curves.print_curve(cpr_curve)
+# cpr_curve = curves.cpr(loans_data)
+# curves.print_curve(cpr_curve)
 
 # With pivot on Product
-cpr_curve = curves.cpr(loans_data, pivots=["product"])
+# cpr_curve = curves.cpr(loans_data, pivots=["product"])
+# curves.print_curve(cpr_curve)
+
+# With index on Time to Reversion and pivot on Product
+# Note, for Time to Reversion we do not want to filter out 0s
+cpr_curve = curves.cpr(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
 curves.print_curve(cpr_curve)
 
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning
-cdr_curve = curves.cdr(loans_data)
-curves.print_curve(cdr_curve)
+# cdr_curve = curves.cdr(loans_data)
+# curves.print_curve(cdr_curve)
 
 # With pivot on Product
-cdr_curve = curves.cdr(loans_data, pivots=["product"])
-curves.print_curve(cdr_curve)
+# cdr_curve = curves.cdr(loans_data, pivots=["product"])
+# curves.print_curve(cdr_curve)
 
-# for idx, value in cdr_curve.items():
-#      print(f"Index: {idx}, Value: {value}")
+# With index on Time to Reversion and pivot on Product
+# Note, for Time to Reversion we do not want to filter out 0s
+cpr_curve = curves.cdr(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
+curves.print_curve(cpr_curve)
 
 # It is also interesting to look at Recovery Curve per seasoning.
 #
