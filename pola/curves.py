@@ -1,9 +1,9 @@
 from .dataset import PortfolioOfOutstandingLoans
 
-import pandas as pd
 import polars as pl
+import pandas as pd
 
-def cpr(portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]):
+def cpr(portfolio: PortfolioOfOutstandingLoans, index="Seasoning", pivots=[]) -> pd.Series:
     """Generates Conditional Prepayment Rate Prepayment Curves for the portfolio.
         Filters out negative seasonings
 
