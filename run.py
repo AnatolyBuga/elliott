@@ -6,12 +6,9 @@ from pola import (
     PaymentMadeTabInfo,
     PortfolioOfOutstandingLoans,
     StaticTabInfo,
-    cpr,
-    cdr,
-    print_curve,
-)
+    )
 
-import pola.curves
+from pola import curves
 
 pl.Config.set_tbl_rows(100)
 
@@ -91,18 +88,23 @@ print(loans_data.add_is_active().head(15))
 
 # Note a single use function should return same datatype with or without pivots
 # So we return DataFrame always
-cpr_curve = cpr(loans_data)
-print_curve(cpr_curve)
+cpr_curve = curves.cpr(loans_data)
+curves.print_curve(cpr_curve)
 
 # With pivot on Product
-cpr_curve = cpr(loans_data, pivots=["product"])
-
-print_curve(cpr_curve)
+cpr_curve = curves.cpr(loans_data, pivots=["product"])
+curves.print_curve(cpr_curve)
 
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning
-# cdr_curve = cdr(loans_data)
+cdr_curve = curves.cdr(loans_data)
+curves.print_curve(cdr_curve)
+
+# With pivot on Product
+cdr_curve = curves.cdr(loans_data, pivots=["product"])
+curves.print_curve(cdr_curve)
+
 # for idx, value in cdr_curve.items():
 #      print(f"Index: {idx}, Value: {value}")
 
