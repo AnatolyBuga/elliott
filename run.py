@@ -4,6 +4,7 @@ from pola import (
     PaymentMadeTabInfo,
     PortfolioOfOutstandingLoans,
     StaticTabInfo,
+    cpr
 )
 
 # Note each Tab of the SS might change format/layout in the future
@@ -74,6 +75,11 @@ print(loans_data.add_prepayment_date().head(15))
 
 # Prepayment Curve
 # total prepayment / total outstanding principal for each seasoning
+
+cpr_curve = cpr(loans_data)
+for idx, value in cpr_curve.items():
+    print(f"Index: {idx}, Value: {value}")
+
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning

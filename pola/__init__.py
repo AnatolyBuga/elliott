@@ -1,6 +1,5 @@
 from .dataset import (
     LoanDataTabInfo,
-    
     PortfolioOfOutstandingLoans,
     StaticTabInfo,
 )
@@ -11,6 +10,10 @@ from .tabs import (
     PaymentMadeTabInfo,
 )
 
+from .curves import (
+    cpr
+)
+
 __all__ = [
     "PortfolioOfOutstandingLoans",
     "MonthEndBalanceTabInfo",
@@ -18,4 +21,5 @@ __all__ = [
     "PaymentDueTabInfo",
     "LoanDataTabInfo",
     "StaticTabInfo",
+    "cpr"
 ]
