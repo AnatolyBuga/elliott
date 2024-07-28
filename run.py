@@ -10,7 +10,7 @@ from pola import (
 
 from pola import curves
 
-pl.Config.set_tbl_rows(100)
+pl.Config.set_tbl_rows(20)
 
 # Note each Tab of the SS might change format/layout in the future
 # Custom cleansing/formatting might apply in the future
@@ -46,7 +46,7 @@ print(loans_data.add_seasoning().head(15))
 # Note, first we do paid vs due. It's a fairly expensive calculation
 # so best doing it once and then reusing the value
 print(loans_data.add_payment_made_vs_due().head(15))
-# note we a reusing Payment Due vs Made
+# note we are reusing Payment Due vs Made
 print(loans_data.add_n_missing_payments().head(15))
 
 # Note Recovery is defined as any payments, even £1
