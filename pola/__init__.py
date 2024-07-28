@@ -1,4 +1,4 @@
-from .curves import cpr, print_curve, cdr
+from .curves import CPR, CDR
 from .dataset import LoanDataTabInfo, PortfolioOfOutstandingLoans, StaticTabInfo
 from .tabs import MonthEndBalanceTabInfo, PaymentDueTabInfo, PaymentMadeTabInfo
 
@@ -9,7 +9,6 @@ __all__ = [
     "PaymentDueTabInfo",
     "LoanDataTabInfo",
     "StaticTabInfo",
-    "cpr",
-    "cdr",
-    "print_curve",
+    "CPR",
+    "CDR",
 ]

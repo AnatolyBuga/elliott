@@ -78,6 +78,15 @@ print(loans_data.add_prepayment_date().head(15))
 print(loans_data.add_is_active().head(15))
 
 
+# Curves
+# Curves vary alot by their nature (rate, corr, ) - all of them are built using different data points
+# and have different uses. That's why we provide
+# pola.curves.Curve as an abstract class which takes care of distribution
+# of pivots and other common tasks
+# But each (new) curve MUST implement build_from_portfolio (in the future this method should take **kwargs as arg to allow for maximum flexibility)
+# Curves can override __init__ and other methods depending on the usecase, data etc
+
+
 # CPR estimates rate at which borrower prepay their loans
 
 # For a portfolio of loans, the CPR is an annualized percentage rate that indicates the proportion of the
@@ -88,32 +97,32 @@ print(loans_data.add_is_active().head(15))
 
 # Note a single use function should return same datatype with or without pivots
 # So we return DataFrame always
-# cpr_curve = curves.cpr(loans_data)
-# curves.print_curve(cpr_curve)
+# cpr_curve = curves.CPR(loans_data)
+# cpr_curve.print_curve()
 
 # With pivot on Product
-# cpr_curve = curves.cpr(loans_data, pivots=["product"])
-# curves.print_curve(cpr_curve)
+# cpr_curve = curves.CPR(loans_data, pivots=["product"])
+# cpr_curve.print_curve()
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
-cpr_curve = curves.cpr(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
-curves.print_curve(cpr_curve)
+cpr_curve = curves.CPR(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
+cpr_curve.print_curve()
 
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning
-# cdr_curve = curves.cdr(loans_data)
-# curves.print_curve(cdr_curve)
+# cdr_curve = curves.CDR(loans_data)
+# cdr_curve.print_curve()
 
 # With pivot on Product
-# cdr_curve = curves.cdr(loans_data, pivots=["product"])
-# curves.print_curve(cdr_curve)
+# cdr_curve = curves.CDR(loans_data, pivots=["product"])
+# cdr_curve.print_curve()
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
-cpr_curve = curves.cdr(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
-curves.print_curve(cpr_curve)
+cdr_curve = curves.CDR(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
+cdr_curve.print_curve()
 
 # It is also interesting to look at Recovery Curve per seasoning.
 #
