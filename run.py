@@ -3,11 +3,20 @@ from pola import (
     PaymentDueTabInfo,
     PaymentMadeTabInfo,
     PortfolioOfOutstandingLoans,
+    StaticTabInfo,
 )
+
+# Note each Tab of the SS might change format/layout in the future
+# Custom cleansing/formatting might apply in the future
+# So we provide templates for ad hoc functionality
+# (This is a classic example of SOLID programming principles)
+# For example to read this Static tab we need to skip 2 rows and 1 column
+# In the future this might change , it might even require a custom cleansing funciton
+# all this can be added without breaking changes.
 
 loans_data = PortfolioOfOutstandingLoans.from_excel(
     path="2024 - Strat Casestudy.xlsx",
-    static_tab="DATA-Static",
+    static_tab=StaticTabInfo("DATA-Static"),
     data_tabs=[
         MonthEndBalanceTabInfo("DATA-Month End Balances"),
         PaymentDueTabInfo("DATA-Payment Due"),
@@ -26,13 +35,13 @@ loans_data = PortfolioOfOutstandingLoans.from_excel(
 # it takes into account interest and outstanding ammount
 
 # Seasoning
-print(loans_data.add_seasoning().head(10))
+print(loans_data.add_seasoning().head(15))
 
 # Note, first we do paid vs due. It's a fairly expensive calculation
 # so best doing it once and then reusing the value
-print(loans_data.add_payment_made_vs_due().head(10))
+print(loans_data.add_payment_made_vs_due().head(15))
 # note we a reusing Payment Due vs Made
-print(loans_data.add_n_missing_payments().head(10))
+print(loans_data.add_n_missing_payments().head(15))
 
 # Note Recovery is defined as any payments, even £1
 # Default Month
@@ -57,7 +66,6 @@ print(loans_data.add_recovery_percent().head(15))
 
 # Assuming Loan repays when we first hit Month End Balance == 0
 print(loans_data.add_prepayment_date().head(15))
-
 
 
 end = 0

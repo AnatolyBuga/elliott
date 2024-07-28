@@ -4,6 +4,7 @@ from .dataset import (
     PaymentDueTabInfo,
     PaymentMadeTabInfo,
     PortfolioOfOutstandingLoans,
+    StaticTabInfo,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "PaymentMadeTabInfo",
     "PaymentDueTabInfo",
     "LoanDataTabInfo",
+    "StaticTabInfo",
 ]

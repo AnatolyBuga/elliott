@@ -12,10 +12,19 @@ import polars as pl
 class LoanDataTabInfo(ABC):
     long_name = None
 
-    """A Data Tab"""
-
-    def __init__(self, tab_name):
+    def __init__(self, tab_name, skip_rows: int = 0, skip_columns: int = 0):
         self.tab_name = tab_name
+        self.skip_rows = skip_rows
+        self.skip_columns = skip_columns
+
+
+class StaticTabInfo(LoanDataTabInfo):
+    """Static Info Tab"""
+
+    def __init__(self, tab_name, skip_rows: int = 2, skip_columns: int = 1):
+        self.tab_name = tab_name
+        self.skip_rows = skip_rows
+        self.skip_columns = skip_columns
 
 
 class MonthEndBalanceTabInfo(LoanDataTabInfo):
@@ -42,7 +51,6 @@ class PortfolioOfOutstandingLoans:
         self.static_df = static_df
         self.key = key
 
-
     def add_prepayment_date(self):
         """Assuming Loan repays when we first hit Month End Balance == 0"""
         balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(
@@ -50,7 +58,6 @@ class PortfolioOfOutstandingLoans:
         )
         tenors = self.get_date_cols()
         for i, row in balance.iterrows():
-
             for ix, cf in enumerate(row):
                 # note: for each row Balances are NaN, then positive, then 0 if repaid
                 if cf < 0.00001:
@@ -58,7 +65,7 @@ class PortfolioOfOutstandingLoans:
                     break
 
         return self.static_df
-    
+
     def add_recovery_percent(self):
         self.static_df["RecoveryPercent"] = (
             self.static_df["RecoveredAmmount"] / self.static_df["BalanceAtDefault"]
@@ -309,11 +316,9 @@ class PortfolioOfOutstandingLoans:
     @classmethod
     def from_excel(
         cls,
-        path: str = "2024 - Strat Casestudy.xlsx",
+        path: str,
+        static_tab: StaticTabInfo,
         key="loan_id",
-        static_tab: str = "",  # TODO move this to StaticTabInfo
-        static_tab_skip_rows: int = 2,
-        static_tab_skip_columns: int = 1,
         data_tabs: list[LoanDataTabInfo] = [],
     ):
         """reads tabs of a single excel file, concatenates into one"""
@@ -344,15 +349,15 @@ class PortfolioOfOutstandingLoans:
         # 2) Now join with Static
         # Pandas limitation: first read all columns column names(just names)
         all_columns = pd.read_excel(
-            path, sheet_name=static_tab, skiprows=static_tab_skip_rows, nrows=0
+            path, sheet_name=static_tab.tab_name, skiprows=static_tab.skip_rows, nrows=0
         ).columns
         # the filter out unwanted columns
-        columns_to_use = all_columns[static_tab_skip_columns:]
+        columns_to_use = all_columns[static_tab.skip_columns :]
         # now only read columns and rows we want
         static_df = pd.read_excel(
             path,
-            sheet_name=static_tab,
-            skiprows=static_tab_skip_rows,
+            sheet_name=static_tab.tab_name,
+            skiprows=static_tab.skip_rows,
             usecols=columns_to_use,
         )
 
