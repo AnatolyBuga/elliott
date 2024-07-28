@@ -1,3 +1,5 @@
+import datetime 
+
 from pola import (
     MonthEndBalanceTabInfo,
     PaymentDueTabInfo,
@@ -80,6 +82,12 @@ cpr_curve = cpr(loans_data)
 for idx, value in cpr_curve.items():
     print(f"Index: {idx}, Value: {value}")
 
+cpr_curve = cpr(loans_data, pivots=[
+    datetime.date(2021,8,31),
+    datetime.date(2022,12,31),
+                                    ])
+for idx, value in cpr_curve.items():
+    print(f"Index: {idx}, Value: {value}")
 
 # Default Curve
 # N of defaults / total N of loans for each seasoning
