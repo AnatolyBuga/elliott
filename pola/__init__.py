@@ -1,10 +1,14 @@
 from .dataset import (
     LoanDataTabInfo,
+    
+    PortfolioOfOutstandingLoans,
+    StaticTabInfo,
+)
+
+from .tabs import (
     MonthEndBalanceTabInfo,
     PaymentDueTabInfo,
     PaymentMadeTabInfo,
-    PortfolioOfOutstandingLoans,
-    StaticTabInfo,
 )
 
 __all__ = [

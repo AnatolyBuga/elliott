@@ -67,5 +67,15 @@ print(loans_data.add_recovery_percent().head(15))
 # Assuming Loan repays when we first hit Month End Balance == 0
 print(loans_data.add_prepayment_date().head(15))
 
+# CPR estimates rate at which borrower prepay their loans
+
+# For a portfolio of loans, the CPR is an annualized percentage rate that indicates the proportion of the 
+# remaining principal that is expected to be prepaid over a specified period.
+
+# Prepayment Curve
+# total prepayment / total outstanding principal for each seasoning
+
+# Default Curve
+# N of defaults / total N of loans for each seasoning
 
 end = 0
