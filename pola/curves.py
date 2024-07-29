@@ -123,10 +123,6 @@ class CPR(Curve):
         )
         combined_meb = pl.concat(meb_only_cashflows.get_columns()).rename("MEB")
 
-        # irp = loan_data.filter(pl.col("Data").eq("Is Recovery Payment"))
-        # irp_only_cashflows = irp.select([pl.col(column) for column in cashflow_columns_polars])
-        # combined_irp = pl.concat(irp_only_cashflows.get_columns()).rename("IRP")
-
         pmvpd = loan_data.filter(pl.col("Data").eq("Payment Made vs Due"))
         pmvpd_only_cashflows = pmvpd.select(
             [pl.col(column) for column in cashflow_columns_polars]
@@ -160,9 +156,9 @@ class CDR(Curve):
     def build_from_portfolio(
         self, data_df, cashflow_columns, index="Seasoning", filter_gt_0: bool = True
     ) -> pd.Series:
-        cashflow_columns_polars = [dt.strftime("%Y-%m-%d") for dt in cashflow_columns]
-
         loan_data = pl.from_pandas(data_df)
+
+        cashflow_columns_polars = [dt.strftime("%Y-%m-%d") for dt in cashflow_columns]
 
         # Put all Seasonings, Month End Balance, Is Recovery Payment, Payment Made vs Due into one long Series each
         seasonings = loan_data.filter(pl.col("Data").eq(index))  # select Seasoning
@@ -188,6 +184,62 @@ class CDR(Curve):
         df = pl.DataFrame([combined_seasonings, combined_idm, combined_ia])
 
         return groupby_and_ratio(df, index, "IDM", "IA", "CDR", filter_gt_0)
+
+class RecoveryCurve(Curve):
+    """
+        For each Time to Default - cumulative sum recovery payments and divide by BalanceAtDefault
+        Optionally Filters out negative seasonings.
+
+    Args:
+        portfolio (PortfolioOfOutstandingLoans): Portfolio
+        index (str, optional): x axis. Defaults to 'Time To Default'.
+        pivots (list, optional): list of column names(in our MUST be from static data eg product), whereby the function will then return
+            a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
+    """
+
+    def build_from_portfolio(
+        self, data_df, cashflow_columns, index="Time To Default", filter_gt_0: bool = True
+    ) -> pd.Series:
+        
+        loan_data = pl.from_pandas(data_df)
+        
+        cashflow_columns_polars = [dt.strftime("%Y-%m-%d") for dt in cashflow_columns]
+
+        # Put all Seasonings, Month End Balance, Is Recovery Payment, Payment Made vs Due into one long Series each
+        seasonings = loan_data.filter(pl.col("Data").eq(index))  # select Seasoning
+        seasonings_only_cashflows = seasonings.select(
+            [pl.col(column) for column in cashflow_columns_polars]
+        )  # Drop Data and Loan Id
+        combined_seasonings = pl.concat(seasonings_only_cashflows.get_columns()).rename(
+            index
+        )  # concat into one
+
+        irp = loan_data.filter(pl.col("Data").eq("Is Recovery Payment"))
+        irp_only_cashflows = irp.select(
+            [pl.col(column) for column in cashflow_columns_polars]
+        )
+        combined_irp = pl.concat(irp_only_cashflows.get_columns()).rename("IRP") # combine as one long series
+
+        pm = loan_data.filter(pl.col("Data").eq("Payment Made"))
+        pm_only_cashflows = pm.select(
+            [pl.col(column) for column in cashflow_columns_polars]
+        )
+        combined_pm = pl.concat(pm_only_cashflows.get_columns()).rename("PM") # combine as one long series
+
+        # Recovery Payment = Is Recovery Payment * Payment Made
+        rp = combined_pm*combined_irp
+
+        bad = loan_data.filter(pl.col("Data").eq("Cummulative Recovery"))
+        bad_only_cashflows = bad.select(
+            [pl.col(column) for column in cashflow_columns_polars]
+        )
+        combined_bad = pl.concat(bad_only_cashflows.get_columns()).rename("BAD") # combine as one long series
+
+        # Almost finished
+        raise NotImplementedError
+
+
+
 
 
 

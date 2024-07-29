@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from .tabs import StaticTabInfo, LoanDataTabInfo
-
+from .tabs import LoanDataTabInfo, StaticTabInfo
 
 
 class PortfolioOfOutstandingLoans:
@@ -14,21 +13,21 @@ class PortfolioOfOutstandingLoans:
         self.static_df = static_df
         self.key = key
 
-    def add_is_active(self):
+    def add_balance_at_default(self):
         months = self.get_date_cols()
 
         res = []
-        
+
         for i, row in self.static_df.iterrows():
             loan_id = i + 1
             loan_is_active = []
             loan_is_active.append(loan_id)
-            loan_is_active.append('Is Active')
-            defaultM = row['DefaultMonth']
-            
+            loan_is_active.append("Is Active")
+            defaultM = row["DefaultMonth"]
+
             for month in months:
                 is_active = 0
-                originated = month >= row['origination_date'].date()
+                originated = month >= row["origination_date"].date()
                 in_def = False
                 if defaultM:
                     in_def = month <= defaultM
@@ -39,14 +38,46 @@ class PortfolioOfOutstandingLoans:
             # self.data_df.loc[len(self.data_df)] = loan_is_active
             res.append(loan_is_active)
 
-        df = pd.DataFrame(res, columns=[self.key, 'Data'] + months)
+        df = pd.DataFrame(res, columns=[self.key, "Data"] + months)
 
         self.data_df = pd.concat([self.data_df, df], ignore_index=True)
 
         self.data_df.sort_values(by=self.key, inplace=True)
 
         return self.data_df
-        
+
+    def add_is_active(self):
+        months = self.get_date_cols()
+
+        res = []
+
+        for i, row in self.static_df.iterrows():
+            loan_id = i + 1
+            loan_is_active = []
+            loan_is_active.append(loan_id)
+            loan_is_active.append("Is Active")
+            defaultM = row["DefaultMonth"]
+
+            for month in months:
+                is_active = 0
+                originated = month >= row["origination_date"].date()
+                in_def = False
+                if defaultM:
+                    in_def = month <= defaultM
+                if originated and not in_def:
+                    is_active = 1
+                loan_is_active.append(is_active)
+
+            # self.data_df.loc[len(self.data_df)] = loan_is_active
+            res.append(loan_is_active)
+
+        df = pd.DataFrame(res, columns=[self.key, "Data"] + months)
+
+        self.data_df = pd.concat([self.data_df, df], ignore_index=True)
+
+        self.data_df.sort_values(by=self.key, inplace=True)
+
+        return self.data_df
 
     def add_prepayment_date(self):
         """Assuming Loan repays when we first hit Month End Balance == 0"""
@@ -54,11 +85,13 @@ class PortfolioOfOutstandingLoans:
             ["Data", "loan_id"], axis=1
         )
         tenors = self.get_date_cols()
-        for i, row in balance.iterrows():
+        for loan_idx, (_, row) in enumerate(
+            balance.iterrows()
+        ):  # Again, assuming perfect order
             for ix, cf in enumerate(row):
-                # note: for each row Balances are NaN, then positive, then 0 if repaid
+                # note: for each row Balances are first NaN, then positive, then 0 if repaid
                 if cf < 0.00001:
-                    self.static_df.loc[i, "PrepaymentDate"] = tenors[ix]
+                    self.static_df.loc[loan_idx, "PrepaymentDate"] = tenors[ix]
                     break
 
         return self.static_df
@@ -73,15 +106,35 @@ class PortfolioOfOutstandingLoans:
         balance = self.data_df[self.data_df["Data"] == "Month End Balance"].drop(
             ["Data", "loan_id"], axis=1
         )
+        res = []
         for i, row in self.static_df.iterrows():
+            loan_id = i + 1
+
+            exposure_at_default_for_monthly_data = []
+            exposure_at_default_for_monthly_data.append(loan_id)
+            exposure_at_default_for_monthly_data.append("BalanceAtDefault")
+
             default_month = row["DefaultMonth"]
 
-            loan_id = i + 1
             if default_month is not None:
                 balance_at_default = balance.iloc[loan_id - 1][default_month]
                 self.static_df.loc[i, "BalanceAtDefault"] = balance_at_default
+                exposure_at_default_for_monthly_data.extend(
+                    [balance_at_default] * len(self.get_date_cols())
+                )
             else:
                 self.static_df.loc[i, "BalanceAtDefault"] = None
+                exposure_at_default_for_monthly_data.extend(
+                    [None] * len(self.get_date_cols())
+                )
+
+            res.append(exposure_at_default_for_monthly_data)
+
+        df = pd.DataFrame(res, columns=[self.key, "Data"] + self.get_date_cols())
+
+        self.data_df = pd.concat([self.data_df, df], ignore_index=True)
+
+        self.data_df.sort_values(by=[self.key, "Data"], inplace=True)
 
         return self.static_df
 
@@ -215,6 +268,28 @@ class PortfolioOfOutstandingLoans:
         nm = self.n_missing_payments()
         return self.add_data(nm)
 
+    def add_cummulative_recovery_payments(self):
+        """Sums recovery payments"""
+        # check if has already been calculated
+        pm = self.data_df[self.data_df["Data"] == "Payment Made"].drop(["Data"], axis=1)
+        irp = self.data_df[self.data_df["Data"] == "Is Recovery Payment"].drop(
+            ["Data"], axis=1
+        )
+
+        df = pd.concat([pm, irp], axis=0)
+
+        res = df.groupby(by="loan_id").agg("prod")
+        res.reset_index(inplace=True)
+        res.drop(["loan_id"], inplace=True, axis=1)
+
+        cum_rec = res.cumsum(axis=1)
+
+        cum_rec["loan_id"] = cum_rec.index + 1
+
+        cum_rec["Data"] = "Cummulative Recovery"
+
+        return self.add_data(cum_rec)
+
     def n_missing_payments(self):
         """Computes total number of missed payments"""
         # check if has already been calculated
@@ -253,6 +328,17 @@ class PortfolioOfOutstandingLoans:
 
         return res
 
+    def add_time_to_default(self):
+        """Adds seasoning"""
+        s = self.time_to_default()
+        return self.add_data(s)
+
+    def time_to_default(self):
+        """Computes Seasoning"""
+        res = self.months_to("DefaultMonth")
+        res["Data"] = "Time To Default"
+        return res
+
     def add_seasoning(self):
         """Adds seasoning"""
         s = self.seasoning()
@@ -281,10 +367,12 @@ class PortfolioOfOutstandingLoans:
 
     def months_to(self, date_col_name: str):
         # We want to vectorise the computation, so use polars
-        pl_stat = pl.from_pandas(self.static_df)
-        res = pd.DataFrame(self.static_df[self.key])
+        pl_stat = pl.from_pandas(self.static_df)  # static data
+        res = pd.DataFrame(self.static_df[self.key])  # loan_ids
+        # for each CF month
         for d in self.get_date_cols():
             # For simplicity assuming 30 days per month
+            # the CF month (auto projected) minus static months
             sasoning_per_month = (d - pl_stat[date_col_name]).dt.total_days() / 30
             sasoning_per_month_rounded = sasoning_per_month.round()
             res[d] = sasoning_per_month_rounded.to_pandas()

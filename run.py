@@ -6,9 +6,8 @@ from pola import (
     PaymentMadeTabInfo,
     PortfolioOfOutstandingLoans,
     StaticTabInfo,
-    )
-
-from pola import curves
+    curves,
+)
 
 pl.Config.set_tbl_rows(20)
 
@@ -64,7 +63,7 @@ print(loans_data.add_time_to_reversion().head(15))
 # Post Default Recoveries, Date of Default and Date of last Recovery Payment
 print(loans_data.static_df.head(15))
 
-# And BalanceAtDefault
+# And BalanceAtDefault, useful for Recovery curves
 print(loans_data.add_exposure_at_default().head(15))
 
 # And Recovery Percent
@@ -76,6 +75,9 @@ print(loans_data.add_prepayment_date().head(15))
 # Extra
 # For CDR(Default Curve) it's good to know
 print(loans_data.add_is_active().head(15))
+
+# For Recovery Curve good to have
+print(loans_data.add_cummulative_recovery_payments().head(15))
 
 
 # Curves
@@ -106,7 +108,9 @@ print(loans_data.add_is_active().head(15))
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
-cpr_curve = curves.CPR(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
+cpr_curve = curves.CPR(
+    loans_data, index="Time To Reversion", pivots=["product"], filter_gt_0=False
+)
 cpr_curve.print_curve()
 
 
@@ -121,7 +125,9 @@ cpr_curve.print_curve()
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
-cdr_curve = curves.CDR(loans_data, index='Time To Reversion',pivots=["product"], filter_gt_0=False)
+cdr_curve = curves.CDR(
+    loans_data, index="Time To Reversion", pivots=["product"], filter_gt_0=False
+)
 cdr_curve.print_curve()
 
 # It is also interesting to look at Recovery Curve per seasoning.
