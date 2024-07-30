@@ -58,7 +58,7 @@ print(loans_data.add_is_recovery_payment().head(15))
 print(loans_data.add_is_post_seller_purchase_date().head(15))
 
 # Reversion - very similar to seasoning
-print(loans_data.add_time_to_reversion().head(15))
+print(loans_data.add_time_since_reversion().head(15))
 
 # Post Default Recoveries, Date of Default and Date of last Recovery Payment
 print(loans_data.static_df.head(15))
@@ -78,6 +78,9 @@ print(loans_data.add_is_active().head(15))
 
 # For Recovery Curve good to have
 print(loans_data.add_cummulative_recovery_payments().head(15))
+
+# For Recovery Curve good to have
+print(loans_data.add_time_since_default().head(15))
 
 
 # Curves
@@ -108,10 +111,10 @@ print(loans_data.add_cummulative_recovery_payments().head(15))
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
-cpr_curve = curves.CPR(
-    loans_data, index="Time To Reversion", pivots=["product"], filter_gt_0=False
-)
-cpr_curve.print_curve()
+# cpr_curve = curves.CPR(
+#     loans_data, index="Time To Reversion", pivots=["product"], filter_gt_0=False
+# )
+# cpr_curve.show()
 
 
 # Default Curve
@@ -120,13 +123,13 @@ cpr_curve.print_curve()
 # cdr_curve.print_curve()
 
 # With pivot on Product
-# cdr_curve = curves.CDR(loans_data, pivots=["product"])
-# cdr_curve.print_curve()
+cdr_curve = curves.CDR(loans_data, pivots=["product"])
+cdr_curve.show()
 
 # With index on Time to Reversion and pivot on Product
 # Note, for Time to Reversion we do not want to filter out 0s
 cdr_curve = curves.CDR(
-    loans_data, index="Time To Reversion", pivots=["product"], filter_gt_0=False
+    loans_data, index="Time Since Reversion", pivots=["product"], filter_gt_0=False
 )
 cdr_curve.print_curve()
 

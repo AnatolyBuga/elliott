@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 import polars as pl
+import matplotlib.pyplot as plt
 
 from .dataset import PortfolioOfOutstandingLoans
 
@@ -10,6 +11,10 @@ class Curve(ABC):
     """This curve originates from PortfolioOfOutstandingLoans
         In the future we might want to abstract away from that and have more generic curve
     """
+
+    # TODO abstract property
+    alias = None
+
     def __init__(
         self,
         portfolio: PortfolioOfOutstandingLoans,
@@ -62,7 +67,7 @@ class Curve(ABC):
                 curves.append(
                     self.build_from_portfolio(
                         group, cashflow_columns, index, filter_gt_0
-                    ).rename(name + " " + f"CPR per {index}")
+                    ).rename(name + " " + f"{self.alias} per {index}")
                 )
 
         else:
@@ -73,6 +78,28 @@ class Curve(ABC):
             )
 
         return pd.concat(curves, axis=1)
+
+    def show(self):
+        # Create a single plot
+        plt.figure(figsize=(10, 6))
+
+        # Plot each column vs. index
+        for column in self.curves.columns:
+            plt.scatter(self.curves.index, self.curves[column], label=column, alpha=0.7, edgecolors='w', s=100)
+
+        # Add title and labels
+        plt.title('Scatter Plot of Columns vs Index', fontsize=14)
+        plt.xlabel(self.curves.index.name if self.curves.index.name else 'Index', fontsize=12)
+        plt.ylabel('Values', fontsize=12)
+
+        # Add legend
+        plt.legend()
+
+        # Add grid
+        plt.grid(True)
+
+        # Show plot
+        plt.show()
 
     def print_curve(self):
         """Pretty prints curve
@@ -100,6 +127,8 @@ class CPR(Curve):
         pivots (list, optional): list of column names(in our MUST be from static data eg product), whereby the function will then return
             a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
     """
+
+    alias = "CPR"
 
     def build_from_portfolio(
         self, data_df, cashflow_columns, index="Seasoning", filter_gt_0: bool = True
@@ -138,7 +167,7 @@ class CPR(Curve):
 
         # For each unique seasoning:
         # sum Recovery Payment Ammounts / sum month end balance
-        return groupby_and_ratio(df, index, "PPA", "MEB", "CPR", filter_gt_0)
+        return groupby_and_ratio(df, index, "PPA", "MEB", self.alias, filter_gt_0)
 
 
 class CDR(Curve):
@@ -152,6 +181,8 @@ class CDR(Curve):
         pivots (list, optional): list of column names(in our case dates eg 31/07/2021), whereby the function will then return
             a dataframe with each column being the CPR for that unique value of pivot. Defaults to [].
     """
+
+    alias = "CDR"
 
     def build_from_portfolio(
         self, data_df, cashflow_columns, index="Seasoning", filter_gt_0: bool = True
@@ -183,12 +214,14 @@ class CDR(Curve):
 
         df = pl.DataFrame([combined_seasonings, combined_idm, combined_ia])
 
-        return groupby_and_ratio(df, index, "IDM", "IA", "CDR", filter_gt_0)
+        return groupby_and_ratio(df, index, "IDM", "IA", self.alias, filter_gt_0)
 
 class RecoveryCurve(Curve):
+    alias = "Recovery Curve"
+
     """
         For each Time to Default - cumulative sum recovery payments and divide by BalanceAtDefault
-        Optionally Filters out negative seasonings.
+        
 
     Args:
         portfolio (PortfolioOfOutstandingLoans): Portfolio
@@ -198,7 +231,7 @@ class RecoveryCurve(Curve):
     """
 
     def build_from_portfolio(
-        self, data_df, cashflow_columns, index="Time To Default", filter_gt_0: bool = True
+        self, data_df, cashflow_columns, index="Time Since Default", filter_gt_0: bool = True
     ) -> pd.Series:
         
         loan_data = pl.from_pandas(data_df)
@@ -210,37 +243,28 @@ class RecoveryCurve(Curve):
         seasonings_only_cashflows = seasonings.select(
             [pl.col(column) for column in cashflow_columns_polars]
         )  # Drop Data and Loan Id
-        combined_seasonings = pl.concat(seasonings_only_cashflows.get_columns()).rename(
+        combined_indexes = pl.concat(seasonings_only_cashflows.get_columns()).rename(
             index
         )  # concat into one
 
-        irp = loan_data.filter(pl.col("Data").eq("Is Recovery Payment"))
-        irp_only_cashflows = irp.select(
+        cr = loan_data.filter(pl.col("Data").eq("Cummulative Recovery"))
+        cr_only_cashflows = cr.select(
             [pl.col(column) for column in cashflow_columns_polars]
         )
-        combined_irp = pl.concat(irp_only_cashflows.get_columns()).rename("IRP") # combine as one long series
+        combined_cr = pl.concat(cr_only_cashflows.get_columns()).rename("CR") # combine as one long series
 
-        pm = loan_data.filter(pl.col("Data").eq("Payment Made"))
-        pm_only_cashflows = pm.select(
-            [pl.col(column) for column in cashflow_columns_polars]
-        )
-        combined_pm = pl.concat(pm_only_cashflows.get_columns()).rename("PM") # combine as one long series
-
-        # Recovery Payment = Is Recovery Payment * Payment Made
-        rp = combined_pm*combined_irp
-
-        bad = loan_data.filter(pl.col("Data").eq("Cummulative Recovery"))
+        bad = loan_data.filter(pl.col("Data").eq("BalanceAtDefault"))
         bad_only_cashflows = bad.select(
             [pl.col(column) for column in cashflow_columns_polars]
         )
-        combined_bad = pl.concat(bad_only_cashflows.get_columns()).rename("BAD") # combine as one long series
+
+        combined_bad = pl.concat(bad_only_cashflows.get_columns()).rename("BD") # combine as one long series
+
+        
+        df = pl.DataFrame([combined_indexes, combined_cr, combined_bad])
 
         # Almost finished
-        raise NotImplementedError
-
-
-
-
+        return groupby_and_ratio(df, index, "CR", "BD", self.alias, filter_gt_0)
 
 
 def groupby_and_ratio(

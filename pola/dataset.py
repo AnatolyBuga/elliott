@@ -328,15 +328,15 @@ class PortfolioOfOutstandingLoans:
 
         return res
 
-    def add_time_to_default(self):
+    def add_time_since_default(self):
         """Adds seasoning"""
         s = self.time_to_default()
         return self.add_data(s)
 
     def time_to_default(self):
         """Computes Seasoning"""
-        res = self.months_to("DefaultMonth")
-        res["Data"] = "Time To Default"
+        res = self.months_since("DefaultMonth")
+        res["Data"] = "Time Since Default"
         return res
 
     def add_seasoning(self):
@@ -346,26 +346,26 @@ class PortfolioOfOutstandingLoans:
 
     def seasoning(self):
         """Computes Seasoning"""
-        res = self.months_to("origination_date")
+        res = self.months_since("origination_date")
         res["Data"] = "Seasoning"
         return res
 
-    def add_time_to_reversion(self):
+    def add_time_since_reversion(self):
         """Adds seasoning"""
         s = self.reversion()
         return self.add_data(s)
 
     def reversion(self):
         """Computes Seasoning"""
-        res = self.months_to("reversion_date")
-        res["Data"] = "Time To Reversion"
+        res = self.months_since("reversion_date")
+        res["Data"] = "Time Since Reversion"
         return res
 
     ### ####  ###
     ### UTILS ###
     ### ####  ###
 
-    def months_to(self, date_col_name: str):
+    def months_since(self, date_col_name: str):
         # We want to vectorise the computation, so use polars
         pl_stat = pl.from_pandas(self.static_df)  # static data
         res = pd.DataFrame(self.static_df[self.key])  # loan_ids
